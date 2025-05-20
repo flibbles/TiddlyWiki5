@@ -1407,8 +1407,9 @@ $tw.Wiki = function(options) {
 		$tw.utils.each(titles || getTiddlerTitles(),function(title) {
 			var tiddler = tiddlers[title];
 			if(tiddler) {
-				if(tiddler.fields.type === "application/json" && tiddler.hasField("plugin-type") && tiddler.fields.text) {
-					pluginInfo[tiddler.fields.title] = $tw.utils.parseJSONSafe(tiddler.fields.text);
+				var unpacker = $tw.Wiki.pluginUnpackerModules[tiddler.fields.type];
+				if(unpacker && tiddler.hasField("plugin-type") && tiddler.fields.text) {
+					pluginInfo[tiddler.fields.title] = unpacker(tiddler.fields.text);
 					results.modifiedPlugins.push(tiddler.fields.title);
 				}
 			} else {
@@ -1431,7 +1432,7 @@ $tw.Wiki = function(options) {
 		var self = this,
 			registeredTitles = [],
 			checkTiddler = function(tiddler,title) {
-				if(tiddler && tiddler.fields.type === "application/json" && tiddler.fields["plugin-type"] && (!pluginType || tiddler.fields["plugin-type"] === pluginType)) {
+				if(tiddler && $tw.Wiki.pluginUnpackerModules[tiddler.fields.type] && tiddler.fields["plugin-type"] && (!pluginType || tiddler.fields["plugin-type"] === pluginType)) {
 					var disablingTiddler = self.getTiddler("$:/config/Plugins/Disabled/" + title);
 					if(title === "$:/core" || !disablingTiddler || (disablingTiddler.fields.text || "").trim() !== "yes") {
 						self.unregisterPluginTiddlers(null,[title]); // Unregister the plugin if it's already registered
@@ -1739,6 +1740,12 @@ $tw.modules.define("$:/boot/tiddlerdeserializer/json","tiddlerdeserializer",{
 			fields.type = "application/json";
 			return [fields];
 		}
+	}
+});
+
+$tw.modules.define("$:/boot/pluginunpacker/json","pluginunpacker",{
+	"application/json": function(data,fields) {
+		return $tw.utils.parseJSONSafe(data);
 	}
 });
 
@@ -2508,6 +2515,9 @@ $tw.boot.initStartup = function(options) {
 	// Install the tiddler deserializer modules
 	$tw.Wiki.tiddlerDeserializerModules = Object.create(null);
 	$tw.modules.applyMethods("tiddlerdeserializer",$tw.Wiki.tiddlerDeserializerModules);
+	// Install the plugin unpacker modules
+	$tw.Wiki.pluginUnpackerModules = Object.create(null);
+	$tw.modules.applyMethods("pluginunpacker",$tw.Wiki.pluginUnpackerModules);
 	// Call unload handlers in the browser
 	if($tw.browser) {
 		window.onbeforeunload = function(event) {
